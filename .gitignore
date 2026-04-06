@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 虚拟环境
+venv/
+env/
+.env
+.venv
+
+# 数据库（不提交本地数据库，Render 会自动创建新的）
+backend/ci_scoring.db
+backend/instance/
+
+# 临时文件
+backend/analysis_result.txt
+backend/analyze_poem.py
+backend/test_tone.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统
+.DS_Store
+Thumbs.db

@@ -1,0 +1,10 @@
+[railway]
+  service = "python"
+  builder = "nixpacks"
+
+[railway.variables]
+  PORT = 8000
+  FLASK_ENV = "production"
+
+[nixpacks]
+  python_version = "313"

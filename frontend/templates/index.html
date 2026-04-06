@@ -1,0 +1,585 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>词话 · 传承诗词之美</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260407a" />
+</head>
+<body>
+  <!-- 背景装饰（留白） -->
+  <div class="bg-decoration"></div>
+
+  <!-- 顶部导航 -->
+  <header class="header" id="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🌿</span>
+        <span class="logo-text">词话</span>
+      </div>
+      <nav class="nav" id="mainNav">
+        <a href="#" class="nav-link active" data-page="home" onclick="showPage('home')">首页</a>
+        <a href="#" class="nav-link" data-page="score" onclick="showPage('score')">词作评分</a>
+        <a href="#" class="nav-link" data-page="history" onclick="showPage('history')">我的作品</a>
+        <a href="#" class="nav-link" data-page="cipai" onclick="showPage('cipai')">词牌大全</a>
+      </nav>
+      <div class="header-right">
+        <div id="userArea" class="user-area hidden">
+          <span class="user-avatar" id="userAvatar"></span>
+          <span class="username" id="headerUsername"></span>
+          <div class="user-dropdown">
+            <a href="#" onclick="showPage('history')"><i class="fa fa-book"></i> 我的作品</a>
+            <a href="#" onclick="showLLMConfig()"><i class="fa fa-cog"></i> AI配置</a>
+            <a href="#" onclick="doLogout()"><i class="fa fa-sign-out-alt"></i> 退出登录</a>
+          </div>
+        </div>
+        <div id="authButtons" class="auth-buttons">
+          <button class="btn btn-outline" onclick="showModal('loginModal')">登录</button>
+          <button class="btn btn-primary" onclick="showModal('registerModal')">注册</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== 首页 ========== -->
+  <div id="page-home" class="page active">
+    <section class="hero">
+      <!-- 文字区 -->
+      <div class="hero-content">
+        <div class="hero-badge">🌸 传承诗词之美</div>
+        <h1 class="hero-title">词话</h1>
+        <p class="hero-sub">格律智能分析 · AI意境深度评估<br />让每一首词都得到专业的品鉴</p>
+        <div class="hero-actions">
+          <button class="btn btn-hero-primary" onclick="gotoScore()">
+            <i class="fa fa-pen-nib"></i> 立即评分
+          </button>
+          <button class="btn btn-hero-outline" onclick="showPage('cipai')">
+            <i class="fa fa-list"></i> 词牌大全
+          </button>
+        </div>
+      </div>
+    </section>
+
+
+    <section class="features">
+      <div class="container">
+        <h2 class="section-title"></h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🎵</div>
+            <h3>格律精准分析</h3>
+            <p>收录30+词牌，涵盖正体及变体格律，智能匹配最佳格律方案，精准评估平仄韵律</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h3>AI意境评估</h3>
+            <p>接入大语言模型，从意象、情感、意境营造、语言美感四个维度全面品评词作</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>百分制评分</h3>
+            <p>韵律权重50%，意境权重50%，科学量化词作水平，可视化展示评分详情</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📚</div>
+            <h3>历史记录</h3>
+            <p>保存每次评分记录，支持修改词作后重新评分，追踪创作进步历程</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cipai-preview">
+      <div class="container">
+        <h2 class="section-title">支持词牌（部分）</h2>
+        <div class="cipai-tags" id="homeCipaiTags">
+          <!-- 由JS填充 -->
+        </div>
+        <div class="text-center mt-20">
+          <button class="btn btn-outline" onclick="showPage('cipai')">查看全部词牌 →</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========== 词作评分页 ========== -->
+  <div id="page-score" class="page">
+    <div class="page-header">
+      <h1>词作评分</h1>
+      <p>选择词牌，输入词作，获得专业评分</p>
+    </div>
+    <div class="container">
+      <div class="score-layout">
+        <!-- 左：输入区 -->
+        <div class="score-input-area">
+          <div class="form-card">
+            <!-- 编辑作品ID（如果是修改） -->
+            <input type="hidden" id="editWorkId" value="">
+
+            <!-- 标题 -->
+            <div class="form-group">
+              <label>作品标题 <span class="optional">（选填）</span></label>
+              <input type="text" id="poemTitle" class="form-input" placeholder="如：月夜思乡" maxlength="50" />
+            </div>
+
+            <!-- 词牌选择 -->
+            <div class="form-group">
+              <label>词牌名称 <span class="required">*</span></label>
+              <div class="cipai-selector">
+                <div class="cipai-search-wrap">
+                  <input type="text" id="cipaiSearch" class="form-input" placeholder="输入词牌名模糊搜索，如：水调、念奴" 
+                         oninput="searchCipai(this.value)" autocomplete="off" />
+                  <i class="fa fa-search cipai-search-icon"></i>
+                </div>
+                <div id="cipaiDropdown" class="cipai-dropdown hidden"></div>
+                <div id="selectedCipai" class="selected-cipai hidden">
+                  <span class="cipai-badge" id="selectedCipaiName"></span>
+                  <span class="cipai-desc" id="selectedCipaiDesc"></span>
+                  <button class="clear-cipai" onclick="clearCipai()">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 词作内容 -->
+            <div class="form-group">
+              <label>词作内容 <span class="required">*</span></label>
+              <div class="textarea-wrap">
+                <textarea id="poemContent" class="form-textarea" 
+                          placeholder="在此输入词作内容，使用标点符号分隔句子。&#10;示例：&#10;明月几时有，把酒问青天。&#10;不知天上宫阙，今夕是何年。" 
+                          rows="12" maxlength="2000"
+                          oninput="updateCharCount()"></textarea>
+                <div class="char-count"><span id="charCount">0</span>/2000</div>
+              </div>
+              <div class="textarea-tips">
+                <i class="fa fa-lightbulb"></i> 提示：请使用中文标点符号（，。！？）分隔各句，有助于格律分析
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary btn-large" id="scoreBtn" onclick="submitScore()">
+                <i class="fa fa-star"></i> 开始评分
+              </button>
+              <button class="btn btn-outline" onclick="clearScoreForm()">清空</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右：评分结果区 -->
+        <div class="score-result-area" id="scoreResultArea">
+          <div class="result-placeholder" id="resultPlaceholder">
+            <div class="placeholder-icon">🌿</div>
+            <p>填写词作后点击评分，<br/>这里将显示详细评分结果</p>
+          </div>
+
+          <!-- 评分结果卡片 -->
+          <div id="scoreResult" class="score-result-card hidden">
+            <div class="result-header">
+              <h3 id="resultTitle">评分结果</h3>
+              <div class="result-cipai" id="resultCipaiName"></div>
+            </div>
+
+            <!-- 总分圆形 -->
+            <div class="total-score-wrap">
+              <div class="total-score-circle" id="totalScoreCircle">
+                <svg viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="#d4ede3" stroke-width="8"/>
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="url(#scoreGrad)" stroke-width="8"
+                          stroke-linecap="round" stroke-dasharray="339.3" stroke-dashoffset="339.3"
+                          id="scoreCirclePath" transform="rotate(-90 60 60)"/>
+                  <defs>
+                    <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#5dba8a"/>
+                      <stop offset="100%" stop-color="#f08da8"/>
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="score-number">
+                  <span id="totalScoreNum">0</span>
+                  <span class="score-unit">分</span>
+                </div>
+              </div>
+              <div class="score-breakdown">
+                <div class="score-item">
+                  <div class="score-label">韵律得分</div>
+                  <div class="score-bar-wrap">
+                    <div class="score-bar" id="rhythmBar"></div>
+                  </div>
+                  <div class="score-val" id="rhythmScoreVal">0</div>
+                  <div class="score-max">/50</div>
+                </div>
+                <div class="score-item">
+                  <div class="score-label">意境得分</div>
+                  <div class="score-bar-wrap">
+                    <div class="score-bar yijing" id="yijingBar"></div>
+                  </div>
+                  <div class="score-val" id="yijingScoreVal">0</div>
+                  <div class="score-max">/50</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 等级徽章 -->
+            <div class="grade-badge" id="gradeBadge"></div>
+
+            <!-- 韵律分析详情 -->
+            <div class="detail-section">
+              <div class="detail-title" onclick="toggleDetail('rhythmDetail')">
+                <i class="fa fa-music"></i> 韵律分析
+                <i class="fa fa-chevron-down toggle-icon" id="rhythmDetailToggle"></i>
+              </div>
+              <div id="rhythmDetail" class="detail-content">
+                <div class="rhythm-info">
+                  <div class="info-row">
+                    <span class="info-label">匹配格律：</span>
+                    <span class="info-value" id="matchedPattern">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">格律类型：</span>
+                    <span class="info-value" id="patternType">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">匹配度：</span>
+                    <span class="info-value" id="matchRate">-</span>
+                  </div>
+                </div>
+                <div class="tone-analysis" id="toneAnalysis">
+                  <!-- 逐字声调 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 意境分析详情 -->
+            <div class="detail-section">
+              <div class="detail-title" onclick="toggleDetail('yijingDetail')">
+                <i class="fa fa-feather-alt"></i> 意境评析
+                <i class="fa fa-chevron-down toggle-icon" id="yijingDetailToggle"></i>
+              </div>
+              <div id="yijingDetail" class="detail-content">
+                <div class="yijing-dims" id="yijingDims">
+                  <!-- 四维评分 -->
+                </div>
+                <div class="yijing-comment" id="yijingComment"></div>
+                <div class="yijing-highlights" id="yijingHighlights"></div>
+                <div class="yijing-suggestions" id="yijingSuggestions"></div>
+                <div class="llm-notice" id="llmNotice"></div>
+              </div>
+            </div>
+
+            <div class="result-actions">
+              <button class="btn btn-outline" onclick="clearScoreForm()">
+                <i class="fa fa-plus"></i> 新建评分
+              </button>
+              <button class="btn btn-primary" onclick="showPage('history')">
+                <i class="fa fa-book"></i> 查看历史
+              </button>
+            </div>
+          </div>
+
+          <!-- 加载中 -->
+          <div id="scoreLoading" class="score-loading hidden">
+            <div class="loading-spinner"></div>
+            <div class="loading-steps">
+              <div class="loading-step active" id="step1">
+                <i class="fa fa-music"></i> 分析格律中...
+              </div>
+              <div class="loading-step" id="step2">
+                <i class="fa fa-brain"></i> AI评估意境中...
+              </div>
+              <div class="loading-step" id="step3">
+                <i class="fa fa-calculator"></i> 计算综合评分...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 我的作品页 ========== -->
+  <div id="page-history" class="page">
+    <div class="page-header">
+      <h1>我的作品</h1>
+      <p>查看、修改和重新评分您的词作</p>
+    </div>
+    <div class="container">
+      <div class="history-toolbar">
+        <div class="history-stats" id="historyStats"></div>
+        <button class="btn btn-primary" onclick="showPage('score')">
+          <i class="fa fa-plus"></i> 新建评分
+        </button>
+      </div>
+
+      <div id="historyContent">
+        <div class="empty-state" id="historyEmpty" style="display:none">
+          <div class="empty-icon">🌸</div>
+          <p>还没有词作评分记录</p>
+          <button class="btn btn-primary" onclick="showPage('score')">立即评分</button>
+        </div>
+        <div class="works-grid" id="worksGrid"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+
+      <div id="historyLogin" class="login-prompt" style="display:none">
+        <div class="empty-icon">🔒</div>
+        <p>请先登录以查看您的历史作品</p>
+        <button class="btn btn-primary" onclick="showModal('loginModal')">立即登录</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 作品详情弹窗 -->
+  <div id="workDetailModal" class="modal-overlay hidden">
+    <div class="modal work-detail-modal">
+      <div class="modal-header">
+        <h3 id="detailModalTitle">作品详情</h3>
+        <button class="modal-close" onclick="closeModal('workDetailModal')">✕</button>
+      </div>
+      <div class="modal-body" id="workDetailBody">
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 词牌大全页 ========== -->
+  <div id="page-cipai" class="page">
+    <div class="page-header">
+      <h1>词牌大全</h1>
+      <p>收录唐宋常见词牌，含格律说明</p>
+    </div>
+    <div class="container">
+      <div class="cipai-search-bar">
+        <input type="text" id="cipaiPageSearch" class="form-input" 
+               placeholder="搜索词牌名称..." oninput="loadCipaiPage(this.value)" />
+        <i class="fa fa-search"></i>
+      </div>
+      <div class="cipai-grid" id="cipaiGrid"></div>
+    </div>
+  </div>
+
+  <!-- ========== 词牌代表作弹窗 ========== -->
+  <div id="repModal" class="modal-overlay hidden">
+    <div class="modal rep-modal">
+      <div class="modal-header">
+        <h3 id="repModalTitle"><i class="fa fa-book-open"></i> 词牌代表作</h3>
+        <div class="modal-header-actions">
+          <button class="modal-fullscreen" onclick="toggleFullscreen('repModal')" title="全屏">
+            <i class="fa fa-expand"></i>
+          </button>
+          <button class="modal-close" onclick="closeModal('repModal')">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" id="repModalBody">
+        <!-- 动态内容 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 代表作编辑弹窗 ========== -->
+  <div id="editRepModal" class="modal-overlay hidden">
+    <div class="modal auth-modal">
+      <div class="modal-header">
+        <h3><i class="fa fa-edit"></i> 编辑代表作</h3>
+        <button class="modal-close" onclick="closeModal('editRepModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">作品标题</label>
+          <input type="text" id="editWorkTitle" class="form-input" placeholder="如：夜飞鹊·河桥送人处" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">作者</label>
+          <input type="text" id="editWorkAuthor" class="form-input" placeholder="如：周邦彦" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">朝代</label>
+          <input type="text" id="editWorkDynasty" class="form-input" placeholder="如：宋" />
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">字号（选填）</label>
+            <input type="text" id="editWorkZi" class="form-input" placeholder="如：美成" />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">号（选填）</label>
+            <input type="text" id="editWorkHao" class="form-input" placeholder="如：清真居士" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">词文（上阕与下阕之间用空行分隔）</label>
+          <textarea id="editWorkText" class="form-input" rows="8" placeholder="词文内容..."></textarea>
+        </div>
+        <div style="text-align:center;margin-top:16px;">
+          <button class="btn btn-primary" onclick="saveRepWork()">
+            <i class="fa fa-save"></i> 保存修改
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 登录弹窗 ========== -->
+  <div id="loginModal" class="modal-overlay hidden">
+    <div class="modal auth-modal">
+      <div class="modal-header">
+        <h3>登录</h3>
+        <button class="modal-close" onclick="closeModal('loginModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>用户名 / 手机号</label>
+          <input type="text" id="loginField" class="form-input" placeholder="输入用户名或手机号" />
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <div class="input-with-icon">
+            <input type="password" id="loginPassword" class="form-input" placeholder="输入密码" 
+                   onkeypress="if(event.key==='Enter') doLogin()" />
+            <i class="fa fa-eye toggle-pw" onclick="togglePw('loginPassword', this)"></i>
+          </div>
+        </div>
+        <div class="msg-area" id="loginMsg"></div>
+        <button class="btn btn-primary btn-block" onclick="doLogin()">登录</button>
+        <div class="auth-switch">
+          还没有账号？<a href="#" onclick="switchModal('loginModal','registerModal')">立即注册</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 注册弹窗 ========== -->
+  <div id="registerModal" class="modal-overlay hidden">
+    <div class="modal auth-modal">
+      <div class="modal-header">
+        <h3>注册账号</h3>
+        <button class="modal-close" onclick="closeModal('registerModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>用户名 <span class="required">*</span></label>
+          <input type="text" id="regUsername" class="form-input" placeholder="2-20个字符" maxlength="20" />
+        </div>
+        <div class="form-group">
+          <label>手机号 <span class="required">*</span></label>
+          <input type="tel" id="regPhone" class="form-input" placeholder="11位手机号" maxlength="11" />
+        </div>
+        <div class="form-group">
+          <label>验证码 <span class="required">*</span></label>
+          <div class="code-input-wrap">
+            <input type="text" id="regCode" class="form-input" placeholder="6位验证码" maxlength="6" />
+            <button class="btn btn-code" id="sendCodeBtn" onclick="sendCode()">发送验证码</button>
+          </div>
+          <div class="demo-code-hint" id="demoCodeHint" style="display:none">
+            <i class="fa fa-key"></i>
+            <span>演示验证码（请填入上方输入框）：<b id="demoCodeVal"></b></span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>密码 <span class="required">*</span></label>
+          <div class="input-with-icon">
+            <input type="password" id="regPassword" class="form-input" placeholder="至少6个字符" />
+            <i class="fa fa-eye toggle-pw" onclick="togglePw('regPassword', this)"></i>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>确认密码 <span class="required">*</span></label>
+          <input type="password" id="regPassword2" class="form-input" placeholder="再次输入密码" 
+                 onkeypress="if(event.key==='Enter') doRegister()" />
+        </div>
+        <div class="msg-area" id="registerMsg"></div>
+        <button class="btn btn-primary btn-block" onclick="doRegister()">注册</button>
+        <div class="auth-switch">
+          已有账号？<a href="#" onclick="switchModal('registerModal','loginModal')">立即登录</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 重复作品提示弹窗 ========== -->
+  <div id="duplicateModal" class="modal-overlay hidden">
+    <div class="modal duplicate-modal">
+      <div class="modal-header">
+        <h3><i class="fa fa-copy"></i> 发现重复作品</h3>
+        <button class="modal-close" onclick="closeModal('duplicateModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="duplicate-info">
+          <p class="duplicate-msg">您已有一首内容完全相同的作品：</p>
+          <div class="duplicate-work-card">
+            <div class="duplicate-title" id="dupWorkTitle"></div>
+            <div class="duplicate-cipai" id="dupWorkCipai"></div>
+            <div class="duplicate-score">
+              <span class="dup-score-item">总分：<b id="dupWorkScore"></b></span>
+              <span class="dup-score-item">评分次数：<b id="dupWorkCount"></b></span>
+            </div>
+            <div class="duplicate-date" id="dupWorkDate"></div>
+          </div>
+          <p class="duplicate-question">您希望如何处理？</p>
+        </div>
+        <div class="duplicate-actions">
+          <button class="btn btn-outline" onclick="viewDuplicateWork()">
+            <i class="fa fa-eye"></i> 查看已有作品
+          </button>
+          <button class="btn btn-primary" onclick="rescoreDuplicate()">
+            <i class="fa fa-redo"></i> 重新评分
+          </button>
+          <button class="btn btn-secondary" onclick="closeModal('duplicateModal')">
+            <i class="fa fa-times"></i> 取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== LLM配置弹窗 ========== -->
+  <div id="llmConfigModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3><i class="fa fa-robot"></i> AI模型配置</h3>
+        <button class="modal-close" onclick="closeModal('llmConfigModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="config-intro">
+          配置大模型API以获得更精准的意境评分。<br/>
+          支持 OpenAI / 兼容接口 / 腾讯混元 等。
+        </p>
+        <div class="form-group">
+          <label>API 地址</label>
+          <input type="text" id="cfgApiUrl" class="form-input" 
+                 placeholder="https://api.openai.com/v1/chat/completions" />
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <div class="input-with-icon">
+            <input type="password" id="cfgApiKey" class="form-input" placeholder="sk-..." />
+            <i class="fa fa-eye toggle-pw" onclick="togglePw('cfgApiKey', this)"></i>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>模型名称</label>
+          <input type="text" id="cfgModel" class="form-input" placeholder="gpt-4o-mini" />
+        </div>
+        <div class="msg-area" id="llmConfigMsg"></div>
+        <button class="btn btn-primary btn-block" onclick="saveLLMConfig()">保存配置</button>
+        <p class="config-note">
+          <i class="fa fa-shield-alt"></i> 
+          配置仅在当前服务器进程中生效，重启后需重新配置。<br/>
+          未配置时系统使用演示评分模式。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast消息 -->
+  <div id="toast" class="toast hidden"></div>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>词话 · 传承诗词之美</p>
+      <p class="footer-sub">格律分析 × AI意境评估 × 百分制评分</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/main.js?v=20260407a"></script>
+</body>
+</html>
