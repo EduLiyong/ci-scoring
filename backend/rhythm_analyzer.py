@@ -226,25 +226,39 @@ def strip_title_lines(text):
     """
     去除词作开头的词牌名/标题行。
     规则：
-      - 如果第一行（按换行或·/《》分隔）纯汉字字数 ≤ 8 且下方还有内容，
-        则视为词牌名/词作名行，予以跳过。
-      - 支持格式：「水调歌头\n词句...」「水调歌头·词名\n词句...」「《水调歌头》词句...」
+      - 如果第一行不包含句子标点（，。等），且纯汉字字数 ≤ 12，才跳过
+      - 支持格式：「水调歌头\n词句...」「水调歌头·词名\n词句...」
+      - 如果第一行包含标点符号，说明它是词句，不跳过
     """
     text = text.strip()
     # 先尝试按换行分段
     lines = text.split('\n')
     if len(lines) >= 2:
-        first_line_chars = re.sub(r'[^\u4e00-\u9fff]', '', lines[0])
+        first_line = lines[0].strip()
+        first_line_chars = re.sub(r'[^\u4e00-\u9fff]', '', first_line)
         rest = '\n'.join(lines[1:]).strip()
-        if rest and len(first_line_chars) <= 8:
+        
+        # 检查第一行是否包含句子标点（，。！？；等）
+        # 注意："·"不是句子标点，是标题分隔符
+        punct_marks = set('，。！？；…—～')
+        has_punct = any(char in punct_marks for char in first_line)
+        
+        # 如果第一行包含句子标点，说明它是词句，不跳过
+        if has_punct:
+            return text
+        
+        # 如果第一行纯汉字字数 ≤ 12 且下方还有内容，跳过
+        # 允许更长的标题（如"水调歌头·明月几时有"有10个汉字）
+        if rest and len(first_line_chars) <= 12:
             return rest
+    
     # 尝试检测 "词牌名·词作名" 格式（仅去掉·前的词牌名部分）
     # 这里保守处理：如果没有换行分隔，不做切割
     return text
 
 
 def split_sentences_by_punct(text):
-    """按标点符号分句，返回句子列表"""
+    """按标点符号分句，返回句子列表（不包含标点）"""
     sentences = []
     current = []
     # 只用中文标点分句，不用换行（换行由 strip_title_lines 处理）
@@ -262,6 +276,48 @@ def split_sentences_by_punct(text):
         sentences.append(''.join(current))
     
     return [s for s in sentences if s]
+
+
+def split_sentences_with_punct(text):
+    """按标点符号分句，返回句子列表（包含标点）"""
+    sentences = []
+    current = []
+    punct_marks = set('，。！？；…—～，。！？；')
+    
+    for char in text:
+        if char in punct_marks:
+            if current:
+                sentences.append(''.join(current))
+                current = []
+            # 记录标点符号
+            sentences.append(char)
+        elif '\u4e00' <= char <= '\u9fff':
+            current.append(char)
+    
+    if current:
+        sentences.append(''.join(current))
+    
+    # 合并句子和标点：将句子和后面的标点合并
+    result = []
+    i = 0
+    while i < len(sentences):
+        sent = sentences[i]
+        # 检查是否为标点（单个字符且在标点集合中）
+        if len(sent) == 1 and sent in punct_marks:
+            # 如果前面有句子，合并标点
+            if result:
+                result[-1] += sent
+            i += 1
+        else:
+            # 检查下一个是否为标点
+            if i + 1 < len(sentences) and len(sentences[i + 1]) == 1 and sentences[i + 1] in punct_marks:
+                result.append(sent + sentences[i + 1])
+                i += 2
+            else:
+                result.append(sent)
+                i += 1
+    
+    return result
 
 
 
@@ -462,6 +518,11 @@ def get_tone_analysis(poem_text, best_pattern=None):
     """
     # 去除标题行，只保留词句正文
     clean_text = strip_title_lines(poem_text)
+    
+    # 使用带标点的分句函数
+    sentences_with_punct = split_sentences_with_punct(clean_text)
+    
+    # 提取纯汉字句子用于分析
     sentences = split_sentences_by_punct(clean_text)
 
     # 提取格律句子列表，用于逐字对比
@@ -527,7 +588,9 @@ def get_tone_analysis(poem_text, best_pattern=None):
                 'match': match_status
             })
 
-        result.append({'sentence': sent, 'analysis': chars_analysis})
+        # 获取带标点的句子（如果存在）
+        sentence_display = sentences_with_punct[sent_idx] if sent_idx < len(sentences_with_punct) else sent
+        result.append({'sentence': sentence_display, 'analysis': chars_analysis})
     return result
 
 

@@ -6,7 +6,7 @@
   <title>词话 · 传承诗词之美</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  <link rel="stylesheet" href="/static/css/style.css?v=20260407a" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260411a" />
 </head>
 <body>
   <!-- 背景装饰（留白） -->
@@ -21,6 +21,7 @@
       </div>
       <nav class="nav" id="mainNav">
         <a href="#" class="nav-link active" data-page="home" onclick="showPage('home')">首页</a>
+        <a href="#" class="nav-link" data-page="compose" onclick="showPage('compose')">奉旨填词</a>
         <a href="#" class="nav-link" data-page="score" onclick="showPage('score')">词作评分</a>
         <a href="#" class="nav-link" data-page="history" onclick="showPage('history')">我的作品</a>
         <a href="#" class="nav-link" data-page="cipai" onclick="showPage('cipai')">词牌大全</a>
@@ -297,6 +298,119 @@
     </div>
   </div>
 
+  <!-- ========== 开始填词页 ========== -->
+  <div id="page-compose" class="page">
+    <div class="page-header">
+      <h1>开始填词</h1>
+      <p>选择词牌，按格律填写您的词作</p>
+    </div>
+    <div class="container">
+      <!-- 步骤1：选择词牌 -->
+      <div id="composeStep1" class="compose-step">
+        <h3 class="step-title">
+          <span class="step-number">1</span>
+          选择词牌
+        </h3>
+        <div class="compose-cipai-selector">
+          <input type="text" id="composeCipaiSearch" class="form-input" placeholder="搜索词牌名称..." oninput="filterComposeCipai(this.value)">
+          <div class="compose-cipai-grid" id="composeCipaiGrid">
+            <!-- 词牌卡片将动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤1.5：选择格律 -->
+      <div id="composeStep1_5" class="compose-step" style="display:none">
+        <div class="compose-header">
+          <h3 class="step-title">
+            <span class="step-number">2</span>
+            选择格律：<span id="composeCipaiNameForPattern"></span>
+          </h3>
+          <button class="btn btn-secondary" onclick="backToCipaiSelect()">
+            <i class="fa fa-arrow-left"></i> 返回选择词牌
+          </button>
+        </div>
+        <div class="pattern-selector-container">
+          <div class="pattern-list" id="patternList">
+            <!-- 格律卡片将动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤2：填词 -->
+      <div id="composeStep2" class="compose-step" style="display:none">
+        <div class="compose-header">
+          <h3 class="step-title">
+            <span class="step-number">3</span>
+            填写词作：<span id="composeCipaiName"></span>
+            <span id="composePatternName" class="pattern-badge"></span>
+            <span id="composeRhymeScheme" style="display:none"></span>
+          </h3>
+          <button class="btn btn-secondary" onclick="resetCompose()">
+            <i class="fa fa-undo"></i> 重新选择词牌
+          </button>
+          <button class="btn btn-secondary" onclick="backToPatternSelect()">
+            <i class="fa fa-arrow-left"></i> 返回选择格律
+          </button>
+        </div>
+        
+        <!-- 代表作展示区（可展开收起） -->
+        <div id="composeRepWork" class="compose-rep-work" style="display:none">
+          <div class="rep-work-header" onclick="toggleRepWork()">
+            <h4><i class="fa fa-book"></i> 代表作参考</h4>
+            <i id="repWorkToggleIcon" class="fa fa-chevron-down rep-toggle-icon"></i>
+          </div>
+          <div id="composeRepContent" class="rep-work-content"></div>
+        </div>
+
+        <!-- 填词创作区 -->
+        <div id="composeFillArea">
+          <!-- 韵脚提示区 -->
+          <div id="rhymeHint" class="rhyme-hint" style="display:none">
+            <div class="rhyme-hint-title">
+              <i class="fa fa-info-circle"></i> 韵脚提示
+            </div>
+            <div id="rhymeHintContent" class="rhyme-hint-content">
+              <!-- 动态生成：每个韵组一个区块 -->
+            </div>
+          </div>
+
+          <!-- 填词格子 -->
+          <div id="composeGrid" class="compose-grid">
+            <!-- 格子将动态生成 -->
+          </div>
+
+          <!-- 实时提示 -->
+          <div id="composeFeedback" class="compose-feedback">
+            <div class="feedback-item" id="pingzeFeedback">
+              <strong>平仄检查：</strong><span id="pingzeStatus">等待输入...</span>
+            </div>
+            <div class="feedback-item" id="rhymeFeedback">
+              <strong>韵脚检查：</strong><span id="rhymeStatus">等待输入...</span>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="compose-actions">
+            <button class="btn btn-secondary" onclick="clearCompose()">
+              <i class="fa fa-eraser"></i> 清空重填
+            </button>
+            <button class="btn btn-primary" onclick="submitCompose()">
+              <i class="fa fa-check"></i> 完成填词，去评分
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 登录提示 -->
+      <div id="composeLogin" class="login-prompt" style="display:none">
+        <div class="empty-icon">🔒</div>
+        <p>请先登录以使用填词功能</p>
+        <button class="btn btn-primary" onclick="showModal('loginModal')">立即登录</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== 我的作品页 ========== -->
   <div id="page-history" class="page">
     <div class="page-header">
@@ -375,6 +489,22 @@
     </div>
   </div>
 
+  <!-- ========== 作者简介弹窗 ========== -->
+  <div id="authorBioModal" class="modal-overlay hidden">
+    <div class="modal author-bio-modal">
+      <div class="author-bio-header">
+        <h3 id="authorBioModalName"></h3>
+        <button class="author-bio-close" onclick="closeAuthorBioModal()">✕</button>
+      </div>
+      <div class="author-bio-body" id="authorBioModalBody">
+        <!-- 动态内容 -->
+      </div>
+      <div class="author-bio-seal">
+        <span>词苑</span>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== 代表作编辑弹窗 ========== -->
   <div id="editRepModal" class="modal-overlay hidden">
     <div class="modal auth-modal">
@@ -412,6 +542,49 @@
         <div style="text-align:center;margin-top:16px;">
           <button class="btn btn-primary" onclick="saveRepWork()">
             <i class="fa fa-save"></i> 保存修改
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 新增代表作弹窗 ========== -->
+  <div id="addRepModal" class="modal-overlay hidden">
+    <div class="modal auth-modal">
+      <div class="modal-header">
+        <h3><i class="fa fa-plus-circle"></i> 新增代表作</h3>
+        <button class="modal-close" onclick="closeModal('addRepModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">作品标题</label>
+          <input type="text" id="addWorkTitle" class="form-input" placeholder="如：夜飞鹊·河桥送人处" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">作者</label>
+          <input type="text" id="addWorkAuthor" class="form-input" placeholder="如：周邦彦" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">朝代</label>
+          <input type="text" id="addWorkDynasty" class="form-input" placeholder="如：宋" />
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">字号（选填）</label>
+            <input type="text" id="addWorkZi" class="form-input" placeholder="如：美成" />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">号（选填）</label>
+            <input type="text" id="addWorkHao" class="form-input" placeholder="如：清真居士" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">词文（上阕与下阕之间用空行分隔）</label>
+          <textarea id="addWorkText" class="form-input" rows="8" placeholder="词文内容..."></textarea>
+        </div>
+        <div style="text-align:center;margin-top:16px;">
+          <button class="btn btn-primary" onclick="saveNewRepWork()">
+            <i class="fa fa-plus"></i> 确认新增
           </button>
         </div>
       </div>
@@ -580,6 +753,6 @@
     </div>
   </footer>
 
-  <script src="/static/js/main.js?v=20260407a"></script>
+  <script src="/static/js/main.js?v=20260413d"></script>
 </body>
 </html>

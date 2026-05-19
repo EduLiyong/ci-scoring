@@ -16,14 +16,58 @@ env/
 .env
 .venv
 
-# 数据库（不提交本地数据库，Render 会自动创建新的）
+# 数据库
 backend/ci_scoring.db
 backend/instance/
 
-# 临时文件
-backend/analysis_result.txt
-backend/analyze_poem.py
-backend/test_tone.py
+# 临时/修复脚本（一次性使用，不纳入版本控制）
+fix_*.py
+add_*.py
+update_*.py
+check_*.py
+verify_*.py
+test_*.py
+tmp_*.py
+format_*.py
+rebuild_*.py
+restore_*.py
+rollback_*.py
+safe_*.py
+batch_*.py
+append_*.py
+compare_*.py
+debug_*.py
+do_*.py
+find_*.py
+gen_*.py
+write_*.py
+build_*.py
+audit_*.py
+_fix_*.py
+
+# 备份文件
+*.backup
+*.backup_*
+*.bak
+*.bak_*
+cipai_data_backup*.py
+representative_works.json.backup*
+representative_works.json.bak_*
+
+# 临时数据文件
+moyuer_data.json
+moyuer_patterns.py
+queqiaoxian_patterns.json
+tangduo_patterns.json
+tangduo_temp.json
+tmp_*.json
+fix_linebreaks_log.txt
+flask.log
+
+# 备份目录
+backup_*/
+archive/
+_backup_before_cleanup/
 
 # IDE
 .vscode/
@@ -34,3 +78,9 @@ backend/test_tone.py
 # 系统
 .DS_Store
 Thumbs.db
+
+# WorkBuddy
+.workbuddy/
+
+# Vercel
+.vercel/

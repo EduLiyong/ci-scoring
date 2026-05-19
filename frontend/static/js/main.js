@@ -33,6 +33,7 @@ function showPage(name) {
   App.currentPage = name;
   window.scrollTo(0, 0);
 
+  if (name === 'compose') initComposePage();
   if (name === 'history') loadHistory(1);
   if (name === 'cipai') loadCipaiPage('');
 }
@@ -234,6 +235,13 @@ function selectCipai(cipai) {
   document.getElementById('selectedCipai').classList.remove('hidden');
   document.getElementById('selectedCipaiName').textContent = cipai.name;
   document.getElementById('selectedCipaiDesc').textContent = cipai.description || '';
+
+  // 切换词牌时清除上一次的韵脚数据
+  ComposeData.rhymeGroups = [];
+  ComposeData.rhymeGroupData = {};
+  document.getElementById('rhymeHint').style.display = 'none';
+  const rhymeContent = document.getElementById('rhymeHintContent');
+  if (rhymeContent) rhymeContent.innerHTML = '';
 }
 
 function clearCipai() {
@@ -280,6 +288,42 @@ function chooseCipaiForScore(cipaiId) {
     showPage('score');
     setTimeout(() => selectCipai(cipai), 100);
   }
+}
+
+// ===== 作者简介功能（全局） =====
+const _authorBioCache = {};
+
+function showAuthorBio(authorName) {
+  if (!authorName || authorName === '佚名' || authorName === '无名氏') return;
+
+  // 如果缓存中有，直接显示
+  if (_authorBioCache[authorName]) {
+    _renderAuthorBioModal(authorName, _authorBioCache[authorName]);
+    return;
+  }
+
+  // 从API获取
+  fetch(`/api/authors/${encodeURIComponent(authorName)}/bio`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.bio) {
+        _authorBioCache[authorName] = data.bio;
+        _renderAuthorBioModal(authorName, data.bio);
+      }
+    })
+    .catch(() => {});
+}
+
+function _renderAuthorBioModal(name, bio) {
+  const modal = document.getElementById('authorBioModal');
+  const body = document.getElementById('authorBioModalBody');
+  document.getElementById('authorBioModalName').textContent = name;
+  body.innerHTML = `<div class="author-bio-text">${bio}</div>`;
+  modal.classList.remove('hidden');
+}
+
+function closeAuthorBioModal() {
+  document.getElementById('authorBioModal').classList.add('hidden');
 }
 
 // 词牌代表作
@@ -331,10 +375,14 @@ async function showRepWorks(cipaiId, e) {
       let extra = [];
       if (w.zi) extra.push('字' + w.zi);
       if (w.hao) extra.push('号' + w.hao);
+      const clickable = name !== '佚名' && name !== '无名氏';
+      const nameHtml = clickable
+        ? `<span class="rep-work-author author-bio-link" onclick="event.stopPropagation(); showAuthorBio('${name.replace(/'/g, "\\'")}')">${name}</span>`
+        : `<span class="rep-work-author">${name}</span>`;
       if (extra.length > 0) {
-        return `<span class="rep-work-author">${name}</span><span class="rep-work-zi-hao">（${extra.join('，')}）</span>`;
+        return `${nameHtml}<span class="rep-work-zi-hao">（${extra.join('，')}）</span>`;
       }
-      return `<span class="rep-work-author">${name}</span>`;
+      return nameHtml;
     }
 
     // 存储当前数据和词牌ID供编辑使用
@@ -345,7 +393,7 @@ async function showRepWorks(cipaiId, e) {
     // 正体代表作
     if (data.main && data.main.length > 0) {
       html += `<div class="rep-section">
-        <div class="rep-section-title">正体代表作</div>
+        <div class="rep-section-title">正体代表作 ${isEdu ? '<button class="rep-add-btn" onclick="addRepWork(\'main\')" title="新增正体代表作"><i class="fa fa-plus"></i></button>' : ''}</div>
         ${data.main.map((w, idx) => `
           <div class="rep-work">
             <div class="rep-work-header">
@@ -359,20 +407,27 @@ async function showRepWorks(cipaiId, e) {
           </div>
         `).join('')}
       </div>`;
+    } else if (isEdu) {
+      // 如果没有正体代表作，但用户是Edu，也显示一个添加按钮
+      html += `<div class="rep-section">
+        <div class="rep-section-title">正体代表作 <button class="rep-add-btn" onclick="addRepWork('main')" title="新增正体代表作"><i class="fa fa-plus"></i></button></div>
+        <div class="rep-empty"><i class="fa fa-inbox"></i> 暂无正体代表作，点击加号添加</div>
+      </div>`;
     }
 
     // 变体代表作
     if (data.variants && data.variants.length > 0) {
-      data.variants.forEach((v) => {
+      data.variants.forEach((v, vIdx) => {
         if (!v.works || v.works.length === 0) return;
         html += `<div class="rep-section">
-          <div class="rep-section-title">变体代表作 · ${v.name || ''}</div>
-          ${v.works.map(w => `
+          <div class="rep-section-title">变体代表作 · ${v.name || ''} ${isEdu ? `<button class="rep-add-btn" onclick="addRepWork('variant', ${vIdx})" title="新增变体代表作"><i class="fa fa-plus"></i></button>` : ''}</div>
+          ${v.works.map((w, wIdx) => `
             <div class="rep-work">
               <div class="rep-work-header">
                 <span class="rep-work-title">${w.title || '无题'}</span>
                 ${w.dynasty ? `<span class="rep-work-dynasty">${w.dynasty}</span>` : ''}
                 ${fmtAuthor(w)}
+                ${isEdu ? `<button class="rep-edit-btn" onclick="editRepWork(${wIdx}, 'variant', ${vIdx})"><i class="fa fa-edit"></i> 编辑</button>` : ''}
               </div>
               ${w.preface ? `<div class="rep-work-preface">${w.preface}</div>` : ''}
               <div class="rep-work-text">${(w.text || '').replace(/\n/g, '<br>')}</div>
@@ -395,16 +450,16 @@ async function showRepWorks(cipaiId, e) {
 }
 
 // 编辑代表作
-function editRepWork(index, type) {
+function editRepWork(index, type, variantIndex) {
   const data = window._repWorksData;
   const cipaiId = window._repCipaiId;
   
-  if (type !== 'main') {
-    showToast('暂不支持编辑变体代表作', 'info');
-    return;
+  let work;
+  if (type === 'variant') {
+    work = data.variants[variantIndex].works[index];
+  } else {
+    work = data.main[index];
   }
-  
-  const work = data.main[index];
   
   // 填充编辑弹窗
   document.getElementById('editWorkTitle').value = work.title || '';
@@ -417,6 +472,7 @@ function editRepWork(index, type) {
   // 保存索引信息
   window._editWorkIndex = index;
   window._editWorkType = type;
+  window._editVariantIndex = (variantIndex !== undefined && variantIndex !== null) ? variantIndex : 0;
   window._editCipaiId = cipaiId;
   
   // 显示编辑弹窗
@@ -439,7 +495,7 @@ async function saveRepWork() {
   if (!dynasty) return toast('请输入朝代', 'error');
   if (!text) return toast('请输入词文', 'error');
 
-  const workData = { title, author, dynasty, zi, hao, text };
+  const workData = { title, author, dynasty, zi, hao, text, type: window._editWorkType, variant_index: window._editVariantIndex };
   const url = `/api/cipai/${window._editCipaiId}/representatives/${window._editWorkIndex}`;
   console.log('PUT url:', url, 'data:', workData);
 
@@ -458,6 +514,68 @@ async function saveRepWork() {
   } catch(err) {
     console.error('PUT error:', err);
     toast('保存失败: ' + err.message, 'error');
+  }
+}
+
+// 新增代表作
+function addRepWork(type, variantIndex = 0) {
+  // 保存新增类型信息
+  window._addWorkType = type;
+  window._addVariantIndex = variantIndex;
+  window._addCipaiId = window._repCipaiId;
+  
+  // 清空表单
+  document.getElementById('addWorkTitle').value = '';
+  document.getElementById('addWorkAuthor').value = '';
+  document.getElementById('addWorkDynasty').value = '';
+  document.getElementById('addWorkZi').value = '';
+  document.getElementById('addWorkHao').value = '';
+  document.getElementById('addWorkText').value = '';
+  
+  // 显示新增弹窗
+  showModal('addRepModal');
+}
+
+// 保存新增的代表作
+async function saveNewRepWork() {
+  const title = document.getElementById('addWorkTitle').value.trim();
+  const author = document.getElementById('addWorkAuthor').value.trim();
+  const dynasty = document.getElementById('addWorkDynasty').value.trim();
+  const zi = document.getElementById('addWorkZi').value.trim();
+  const hao = document.getElementById('addWorkHao').value.trim();
+  const text = document.getElementById('addWorkText').value;
+
+  if (!title) return toast('请输入作品标题', 'error');
+  if (!author) return toast('请输入作者', 'error');
+  if (!dynasty) return toast('请输入朝代', 'error');
+  if (!text) return toast('请输入词文', 'error');
+
+  const workData = { 
+    title, 
+    author, 
+    dynasty, 
+    zi, 
+    hao, 
+    text, 
+    type: window._addWorkType, 
+    variant_index: window._addVariantIndex 
+  };
+  
+  const url = `/api/cipai/${window._addCipaiId}/representatives`;
+
+  try {
+    const res = await api(url, 'POST', workData);
+    if (res && res.success) {
+      toast('新增成功', 'success');
+      closeModal('addRepModal');
+      // 刷新代表作列表
+      const event = { stopPropagation: () => {} };
+      showRepWorks(window._addCipaiId, event);
+    } else {
+      toast('新增失败: ' + (res?.message || '未知错误'), 'error');
+    }
+  } catch(err) {
+    toast('新增失败: ' + err.message, 'error');
   }
 }
 
@@ -1106,3 +1224,1157 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// ===== 填词功能 =====
+let ComposeData = {
+  selectedCipaiId: null,
+  selectedCipai: null,
+  grid: null,
+  rhymePositions: [],
+  rhymeGroups: [],       // 韵组分组 [{index, type, positions}]
+  rhymeGroupData: {},    // 按韵组独立: {groupIndex: {baseChar, yunbuDisplay, compatYunbus, yunbuChars}}
+  rhymeScheme: null,     // 韵格分类信息 {type, name, desc, color, icon, rhyme_groups, is_ye_rhyme}
+  userChars: {},         // 用户填写的字 {global_index: char}
+  patternWorks: {},      // 缓存格律代表作 {patternIndex: [works]}
+};
+
+// 根据韵格类型获取韵脚的CSS类名
+function getRhymeGroupClass(rhymeGroupIndex, isRhyme, multiGroup) {
+  if (!isRhyme) return '';
+  if (!multiGroup) return 'rhyme-char';
+  
+  const rs = ComposeData.rhymeScheme;
+  const schemeType = rs ? rs.type : '';
+  
+  // 阕间换韵：上阕用一个颜色，下阕用另一个颜色
+  if (schemeType === 'que_jian') {
+    return `rhyme-char rhyme-stanza-${rhymeGroupIndex}`;
+  }
+  
+  // 阕内换韵 / 阕内+阕间皆换韵：每个韵组用不同颜色
+  if (schemeType === 'que_nei' || schemeType === 'que_nei_jian') {
+    return `rhyme-char rhyme-group-${rhymeGroupIndex % 5}`;
+  }
+  
+  // 平韵格/仄韵格：统一颜色（已有rhyme-char默认样式）
+  return 'rhyme-char';
+}
+
+// 根据韵格类型获取韵组标签的CSS类名
+function getRhymeGroupLabelClass(rhymeGroupIndex) {
+  const rs = ComposeData.rhymeScheme;
+  const schemeType = rs ? rs.type : '';
+  
+  if (schemeType === 'que_jian') {
+    return `rhyme-group-label-stanza-${rhymeGroupIndex}`;
+  }
+  if (schemeType === 'que_nei' || schemeType === 'que_nei_jian') {
+    return `rhyme-group-label-${rhymeGroupIndex % 5}`;
+  }
+  return '';
+}
+
+// 页面切换时初始化
+function initComposePage() {
+  if (!App.currentUser) {
+    document.getElementById('composeStep1').style.display = 'none';
+    document.getElementById('composeStep2').style.display = 'none';
+    document.getElementById('composeLogin').style.display = 'flex';
+    return;
+  }
+  
+  document.getElementById('composeLogin').style.display = 'none';
+  document.getElementById('composeStep1').style.display = 'block';
+  document.getElementById('composeStep2').style.display = 'none';
+  
+  // 加载词牌列表
+  loadComposeCipaiList();
+}
+
+// 加载词牌列表
+async function loadComposeCipaiList() {
+  if (!App.cipaiList || App.cipaiList.length === 0) {
+    await loadCipaiList();
+  }
+  renderComposeCipaiGrid(App.cipaiList);
+}
+
+// 渲染词牌卡片
+function renderComposeCipaiGrid(cipaiList) {
+  const grid = document.getElementById('composeCipaiGrid');
+  grid.innerHTML = cipaiList.map(c => {
+    const patternCount = c.pattern_count || 1;
+    const patternText = patternCount === 1 ? '1种格律' : `${patternCount}种格律`;
+    const rs = c.rhyme_scheme;
+    const rsTag = rs ? `<span class="cipai-rhyme-scheme-tag" data-scheme="${rs.type}">${rs.name}</span>` : '';
+    return `
+      <div class="compose-cipai-card" onclick="selectComposeCipai(${c.id})">
+        <h4>${escHtml(c.name)}</h4>
+        <p>${patternText} ${rsTag}</p>
+      </div>
+    `;
+  }).join('');
+}
+
+// 搜索过滤词牌
+function filterComposeCipai(keyword) {
+  const filtered = App.cipaiList.filter(c => 
+    c.name.toLowerCase().includes(keyword.toLowerCase())
+  );
+  renderComposeCipaiGrid(filtered);
+}
+
+// 选择词牌
+async function selectComposeCipai(cipaiId) {
+  // 高亮选中
+  document.querySelectorAll('.compose-cipai-card').forEach(el => {
+    el.classList.remove('selected');
+  });
+  event.target.closest('.compose-cipai-card').classList.add('selected');
+  
+  // 获取词牌基本信息
+  const cipaiBasic = App.cipaiList.find(c => c.id === cipaiId);
+  if (!cipaiBasic) {
+    toast('词牌信息不存在', 'error');
+    return;
+  }
+  
+  // 清空之前的韵脚数据
+  ComposeData.rhymeGroups = [];
+  ComposeData.rhymeGroupData = {};
+  ComposeData.userChars = {};
+  ComposeData.patternWorks = {}; // 清空格律代表作缓存
+  document.getElementById('rhymeHint').style.display = 'none';
+  document.getElementById('rhymeStatus').textContent = '等待输入...';
+  
+  ComposeData.selectedCipaiId = cipaiId;
+  
+  // 检查是否需要选择格律（如果词牌有多个格律）
+  if (cipaiBasic.pattern_count && cipaiBasic.pattern_count > 1) {
+    // 有多个格律，需要获取完整信息
+    const res = await api(`/api/cipai/${cipaiId}`);
+    if (res.success) {
+      ComposeData.selectedCipai = res.data;
+      showPatternSelector(cipaiId, res.data);
+    } else {
+      toast('获取词牌信息失败', 'error');
+    }
+  } else {
+    // 只有一个格律，直接加载
+    await loadPatternGrid(cipaiId, 0);
+  }
+}
+
+// 显示格律选择器
+async function showPatternSelector(cipaiId, cipai) {
+  document.getElementById('composeCipaiNameForPattern').textContent = cipai.name;
+
+  // 并行加载所有格律的代表作（优化性能）
+  const patterns = cipai.patterns || [];
+  const promises = patterns.map((_, i) =>
+    api(`/api/cipai/${cipaiId}/representatives?pattern=${i}`).catch(() => ({ success: false }))
+  );
+
+  const repResults = await Promise.all(promises);
+
+  // 构建HTML
+  let html = '';
+  for (let i = 0; i < patterns.length; i++) {
+    const pattern = patterns[i];
+    const patternName = pattern.name || `格律${i + 1}`;
+    const totalChars = pattern.total_chars || 0;
+    const sentenceCount = pattern.sentences ? pattern.sentences.length : 0;
+
+    // 获取该格律的韵格信息
+    const rhymeSchemes = cipai.rhyme_schemes || [];
+    const rsInfo = rhymeSchemes[i];
+    const rsTag = rsInfo ? `<span class="pattern-rhyme-scheme" data-scheme="${rsInfo.type}">${rsInfo.name}</span>` : '';
+
+    // 从并行结果中获取代表作
+    const repRes = repResults[i];
+    let works = [];
+    if (repRes.success && repRes.data.works) {
+      works = repRes.data.works.slice(0, 1); // 只显示第一首代表作
+      // 缓存完整代表作数据
+      ComposeData.patternWorks[i] = repRes.data.works;
+    }
+
+    html += `
+      <div class="pattern-card" onclick="selectPattern(${i})">
+        <div class="pattern-header">
+          <h4 class="pattern-name">${patternName}${rsTag}</h4>
+          <div class="pattern-info">${totalChars}字 · ${sentenceCount}句</div>
+        </div>
+        <div class="pattern-works">
+          ${works.length > 0 ? `
+            <div class="pattern-works-title">代表作品：</div>
+            ${works.map((w, idx) => `
+              <div class="pattern-work-item" onclick="event.stopPropagation(); showWorkDetail(${i}, ${idx})">
+                <span class="work-dynasty">${w.dynasty || ''}</span>
+                <span class="work-author author-bio-link" onclick="event.stopPropagation(); showAuthorBio('${(w.author || '').replace(/'/g, "\\'")}')">${w.author || ''}</span>
+                <span class="work-title">《${w.title.split('·')[1] || w.title}》</span>
+              </div>
+            `).join('')}
+          ` : '<div class="pattern-works-empty">暂无代表作</div>'}
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById('patternList').innerHTML = html;
+  document.getElementById('composeStep1').style.display = 'none';
+  document.getElementById('composeStep1_5').style.display = 'block';
+  document.getElementById('composeStep2').style.display = 'none';
+}
+
+// 选择格律
+async function selectPattern(patternIndex) {
+  await loadPatternGrid(ComposeData.selectedCipaiId, patternIndex);
+}
+
+// 返回到词牌选择
+function backToCipaiSelect() {
+  document.getElementById('composeStep1').style.display = 'block';
+  document.getElementById('composeStep1_5').style.display = 'none';
+  document.getElementById('composeStep2').style.display = 'none';
+
+  // 清除选中状态
+  document.querySelectorAll('.compose-cipai-card').forEach(el => {
+    el.classList.remove('selected');
+  });
+}
+
+// 返回到格律选择
+function backToPatternSelect() {
+  document.getElementById('composeStep1').style.display = 'none';
+  document.getElementById('composeStep1_5').style.display = 'block';
+  document.getElementById('composeStep2').style.display = 'none';
+
+  // 清除韵组 UI 显示
+  document.getElementById('rhymeHint').style.display = 'none';
+  const rhymeContent = document.getElementById('rhymeHintContent');
+  if (rhymeContent) rhymeContent.innerHTML = '';
+}
+
+// 展开/收起代表作区域
+function toggleRepWork() {
+  const content = document.getElementById('composeRepContent');
+  const icon = document.getElementById('repWorkToggleIcon');
+  
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    icon.classList.remove('fa-chevron-right');
+    icon.classList.add('fa-chevron-down');
+  } else {
+    content.style.display = 'none';
+    icon.classList.remove('fa-chevron-down');
+    icon.classList.add('fa-chevron-right');
+  }
+}
+
+// 加载格律格子
+async function loadPatternGrid(cipaiId, patternIndex) {
+  const res = await api(`/api/cipai/${cipaiId}/grid?pattern=${patternIndex}`);
+  if (!res.success) {
+    toast('加载词牌格律失败：' + res.message, 'error');
+    return;
+  }
+  
+  ComposeData.selectedPatternIndex = patternIndex;
+  ComposeData.grid = res.data.grid;
+  ComposeData.rhymePositions = res.data.rhyme_positions;
+  ComposeData.rhymeGroups = res.data.rhyme_groups || [];
+  ComposeData.rhymeScheme = res.data.rhyme_scheme || null;
+  ComposeData.lineGroups = res.data.line_groups || [];
+  ComposeData.stanzaSplit = res.data.stanza_split || null;
+  ComposeData.rhymeGroupData = {};
+  ComposeData.userChars = {};
+
+  // 清除韵组 UI 显示
+  document.getElementById('rhymeHint').style.display = 'none';
+  const rhymeContent = document.getElementById('rhymeHintContent');
+  if (rhymeContent) rhymeContent.innerHTML = '';
+  
+  // 显示填词界面
+  document.getElementById('composeCipaiName').textContent = res.data.cipai_name;
+  document.getElementById('composePatternName').textContent = res.data.pattern_name;
+  
+  // 显示韵格标签
+  const rsEl = document.getElementById('composeRhymeScheme');
+  if (rsEl && ComposeData.rhymeScheme) {
+    const rs = ComposeData.rhymeScheme;
+    rsEl.innerHTML = `<span class="rhyme-scheme-badge" data-scheme="${rs.type}">${rs.name}</span>`;
+    rsEl.title = rs.desc;
+    rsEl.style.display = 'inline-block';
+  } else if (rsEl) {
+    rsEl.innerHTML = '';
+    rsEl.style.display = 'none';
+  }
+  document.getElementById('composeStep1').style.display = 'none';
+  document.getElementById('composeStep1_5').style.display = 'none';
+  document.getElementById('composeStep2').style.display = 'block';
+  
+  // 单格律词牌隐藏"返回选择格律"按钮
+  const backToPatternBtn = document.querySelector('#composeStep2 .compose-header button[onclick="backToPatternSelect()"]');
+  if (backToPatternBtn) {
+    backToPatternBtn.style.display = (res.data.total_patterns && res.data.total_patterns > 1) ? '' : 'none';
+  }
+  
+  // 展示代表作参考（上方）
+  await loadComposeRepWork(cipaiId, patternIndex);
+  
+  // 渲染格子（下方填词区，始终可见）
+  renderComposeGrid();
+}
+
+// 加载填词界面的代表作展示
+async function loadComposeRepWork(cipaiId, patternIndex) {
+  const repDiv = document.getElementById('composeRepWork');
+  
+  // 加载代表作（优先使用缓存）
+  let works = ComposeData.patternWorks[patternIndex];
+
+  if (!works) {
+    // 没有缓存，调用API
+    const repRes = await api(`/api/cipai/${cipaiId}/representatives?pattern=${patternIndex}`);
+    if (repRes.success && repRes.data.works) {
+      works = repRes.data.works;
+      ComposeData.patternWorks[patternIndex] = works;
+    } else {
+      works = [];
+    }
+  }
+  
+  if (works.length === 0) {
+    // 没有代表作，隐藏参考区
+    repDiv.style.display = 'none';
+    return;
+  }
+  
+  // 展示代表作（以较小文字展示在上方参考区）
+  const contentDiv = document.getElementById('composeRepContent');
+  let html = '';
+  
+  const lineGroups = ComposeData.lineGroups || [];
+  const stanzaSplit = ComposeData.stanzaSplit;
+  const grid = ComposeData.grid;
+  
+  // 计算上阕最后一行的索引
+  let lastUpperLineIdx = -1;
+  if (lineGroups.length > 0 && stanzaSplit) {
+    let sentCount = 0;
+    for (let li = 0; li < lineGroups.length; li++) {
+      sentCount += lineGroups[li].length;
+      if (sentCount >= stanzaSplit) {
+        lastUpperLineIdx = li;
+        break;
+      }
+    }
+  }
+  
+  // 只显示第一首代表作
+  const w = works[0];
+  const workText = w.text || w.content || '';
+
+  // 代表作按原文标点断句展示，不再按格律格子结构强制对齐
+  // 这样可以正确显示句子的完整性（如"三十六宫都足。"不会被拆分）
+  let workHtml = formatWorkContent(workText);
+  
+  html += `
+    <div class="rep-work-item">
+      <div class="rep-work-meta">
+        <span class="rep-work-badge">${w.dynasty || ''}</span>
+        <span class="rep-work-author author-bio-link" onclick="showAuthorBio('${(w.author || '').replace(/'/g, "\\'")}')">${w.author || ''}</span>
+        <span class="rep-work-title">《${w.title.split('·').length > 1 ? w.title.split('·')[1] : w.title}》</span>
+      </div>
+      <div class="rep-work-text">${workHtml}</div>
+    </div>
+  `;
+  
+  contentDiv.innerHTML = html;
+  repDiv.style.display = 'block';
+}
+
+// 按传统词牌格式化代表作内容（分行展示，上下阕间空行）
+function formatWorkContent(content) {
+  if (!content) return '';
+  
+  // 直接按换行符分行展示（代表作文本已有正确的换行符）
+  const lines = content.split('\n');
+  
+  let html = '';
+  for (const line of lines) {
+    if (line.trim() === '') {
+      // 空行 = 上下阕分界
+      html += '<br>';
+    } else {
+      html += `<span class="rep-line">${escHtml(line)}</span><br>`;
+    }
+  }
+  
+  // 移除末尾多余的<br>
+  if (html.endsWith('<br>')) {
+    html = html.slice(0, -4);
+  }
+  
+  return html;
+}
+
+// （startFillCompose 已移除 - 代表作和填词区域现在同页面展示）
+
+
+
+// 显示作品详情
+async function showWorkDetail(patternIndex, workIndex) {
+  const cipaiId = ComposeData.selectedCipaiId;
+  const res = await api(`/api/cipai/${cipaiId}/representatives?pattern=${patternIndex}`);
+  
+  if (!res.success || !res.data.works || !res.data.works[workIndex]) {
+    toast('加载作品详情失败', 'error');
+    return;
+  }
+  
+  const work = res.data.works[workIndex];
+  const pattern = ComposeData.selectedCipai.patterns[patternIndex];
+  
+  // 显示作品详情模态框
+  const content = `
+    <div class="work-detail">
+      <div class="work-detail-header">
+        <span class="work-detail-badge">${work.dynasty || ''}</span>
+        <span class="work-detail-author author-bio-link" onclick="showAuthorBio('${(work.author || '').replace(/'/g, "\\'")}')">${work.author || ''}</span>
+      </div>
+      <h3 class="work-detail-title">${work.title}</h3>
+      <div class="work-detail-pattern">${pattern.name || `格律${patternIndex + 1}`}</div>
+      <div class="work-detail-content">${(work.text || work.content || '').replace(/\n/g, '<br>')}</div>
+    </div>
+  `;
+  
+  // 创建模态框
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.remove();
+  };
+  modal.innerHTML = `
+    <div class="modal-content work-detail-modal">
+      <div class="modal-header">
+        <h3>作品详情</h3>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      </div>
+      <div class="modal-body">${content}</div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// 渲染填词格子
+function renderComposeGrid() {
+  const container = document.getElementById('composeGrid');
+  const totalSentences = ComposeData.grid.length;
+  const lineGroups = ComposeData.lineGroups || [];  // 按韵脚分行分组
+  const stanzaSplit = ComposeData.stanzaSplit;  // 上阕句数
+
+  let html = '';
+
+  // 计算上阕最后一行的索引（上阕句子范围：0 ~ stanzaSplit-1）
+  let lastUpperLineIdx = -1;
+  if (lineGroups.length > 0 && stanzaSplit) {
+    let sentCount = 0;
+    for (let li = 0; li < lineGroups.length; li++) {
+      sentCount += lineGroups[li].length;
+      if (sentCount >= stanzaSplit) {
+        lastUpperLineIdx = li;
+        break;
+      }
+    }
+  }
+
+  lineGroups.forEach((group, lineIdx) => {
+    // 判断是否需要上阕/下阕标记
+    let stanzaLabel = '';
+    const firstSentIdx = group[0];
+    if (firstSentIdx === 0) {
+      stanzaLabel = '上阕';
+    } else if (stanzaSplit && firstSentIdx >= stanzaSplit && lineIdx === lastUpperLineIdx + 1) {
+      stanzaLabel = '下阕';
+    } else if (!stanzaSplit && firstSentIdx === Math.ceil(totalSentences / 2) && totalSentences > 4) {
+      stanzaLabel = '下阕';
+    }
+
+    // 上阕与下阕之间加分隔线
+    if (stanzaSplit && lineIdx === lastUpperLineIdx + 1) {
+      html += '<div class="stanza-gap"></div>';
+    } else if (!stanzaSplit && lineIdx > 0 && firstSentIdx === Math.ceil(totalSentences / 2)) {
+      html += '<div class="stanza-gap"></div>';
+    }
+
+    // 上下阕标签独占一行
+    if (stanzaLabel) {
+      html += `<div class="stanza-label-row"><span class="stanza-marker">${stanzaLabel}</span></div>`;
+    }
+
+    // 渲染一行（可能包含多个句子）
+    html += '<div class="compose-line">';
+
+    group.forEach((sIdx, sOffset) => {
+      const sentence = ComposeData.grid[sIdx];
+      html += `
+        <div class="sentence-inline" data-sentence-index="${sIdx}">
+          ${sentence.chars.map((char, cIdx) => {
+            const multiGroup = ComposeData.rhymeGroups && ComposeData.rhymeGroups.length > 1;
+            const rhymeGroupClass = getRhymeGroupClass(
+              char.rhyme_group_index !== undefined ? char.rhyme_group_index : 0,
+              char.is_rhyme,
+              multiGroup
+            );
+            return `
+            <div class="char-cell-wrapper">
+              <div class="char-cell">
+                <div class="char-tone-hint" data-tone="${char.expected_tone}">${char.expected_tone}</div>
+                <input type="text"
+                       class="char-input ${rhymeGroupClass}"
+                       maxlength="1"
+                       data-global-index="${char.global_index}"
+                       data-local-index="${char.local_index}"
+                       data-sentence-index="${sIdx}"
+                       data-expected="${char.expected_tone}"
+                       data-is-rhyme="${char.is_rhyme}"
+                       data-rhyme-group="${char.is_rhyme ? (char.rhyme_group_index !== undefined ? char.rhyme_group_index : 0) : ''}"
+                       oninput="onCharInput(this)"
+                       onkeydown="onCharKeydown(event, this)">
+                <div class="char-pinyin" id="pinyin-${char.global_index}"></div>
+              </div>
+              ${char.punctuation_after ? `<span class="char-punctuation">${char.punctuation_after}</span>` : ''}
+            </div>
+          `}).join('')}
+        </div>
+      `;
+      // 在句子之间（非末尾句子）插入句子级标点
+      if (sOffset < group.length - 1 && sentence.punctuation) {
+        html += `<span class="char-punctuation">${sentence.punctuation}</span>`;
+      }
+    });
+
+    html += '</div>';  // .compose-line
+  });
+
+  // 如果没有lineGroups数据，回退到旧方式
+  if (lineGroups.length === 0) {
+    html = '';
+    ComposeData.grid.forEach((sentence, sIdx) => {
+      const halfPoint = Math.ceil(totalSentences / 2);
+      let stanzaLabel = '';
+      if (sIdx === 0) stanzaLabel = '<span class="stanza-marker">上阕</span>';
+      else if (sIdx === halfPoint && totalSentences > 4) stanzaLabel = '<span class="stanza-marker">下阕</span>';
+
+      html += `
+        <div class="sentence-block">
+          <div class="sentence-label">
+            ${stanzaLabel}
+            第${sIdx + 1}句（${sentence.char_count}字）
+          </div>
+          <div class="char-cells">
+            ${sentence.chars.map((char, cIdx) => {
+              const multiGroup = ComposeData.rhymeGroups && ComposeData.rhymeGroups.length > 1;
+              const rhymeGroupClass = getRhymeGroupClass(
+                char.rhyme_group_index !== undefined ? char.rhyme_group_index : 0,
+                char.is_rhyme,
+                multiGroup
+              );
+              return `
+              <div class="char-cell-wrapper">
+                <div class="char-cell">
+                  <div class="char-tone-hint" data-tone="${char.expected_tone}">${char.expected_tone}</div>
+                  <input type="text"
+                         class="char-input ${rhymeGroupClass}"
+                         maxlength="1"
+                         data-global-index="${char.global_index}"
+                         data-local-index="${char.local_index}"
+                         data-sentence-index="${sIdx}"
+                         data-expected="${char.expected_tone}"
+                         data-is-rhyme="${char.is_rhyme}"
+                         data-rhyme-group="${char.is_rhyme ? (char.rhyme_group_index !== undefined ? char.rhyme_group_index : 0) : ''}"
+                         oninput="onCharInput(this)"
+                         onkeydown="onCharKeydown(event, this)">
+                  <div class="char-pinyin" id="pinyin-${char.global_index}"></div>
+                </div>
+                ${char.punctuation_after ? `<span class="char-punctuation">${char.punctuation_after}</span>` : ''}
+              </div>
+            `}).join('')}
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  container.innerHTML = html;
+
+  // 重置反馈
+  document.getElementById('pingzeStatus').textContent = '等待输入...';
+  document.getElementById('rhymeStatus').textContent = '等待输入...';
+}
+
+// 字符输入事件
+async function onCharInput(input) {
+  const char = input.value.trim();
+  const globalIdx = parseInt(input.dataset.globalIndex);
+  const expectedTone = input.dataset.expected;
+  const isRhyme = input.dataset.isRhyme === 'true';
+  const rhymeGroupIdx = input.dataset.rhymeGroup !== '' ? parseInt(input.dataset.rhymeGroup) : null;
+  
+  if (!char) {
+    // 清空
+    delete ComposeData.userChars[globalIdx];
+    input.classList.remove('error');
+    document.getElementById(`pinyin-${globalIdx}`).textContent = '';
+    
+    // 如果清空的是韵脚字，按韵组独立检查
+    if (isRhyme && rhymeGroupIdx !== null) {
+      const rg = ComposeData.rhymeGroups.find(g => g.index === rhymeGroupIdx);
+      if (rg) {
+        // 检查该韵组内是否所有韵脚字都被清空
+        const remainingInGroup = rg.positions.filter(pos => ComposeData.userChars[pos]);
+        if (remainingInGroup.length === 0) {
+          // 该韵组所有韵脚字都清空，清除该韵组提示
+          delete ComposeData.rhymeGroupData[rhymeGroupIdx];
+          renderRhymeHintContent();
+        } else {
+          // 该组还有字，检查baseChar是否被清空
+          const groupData = ComposeData.rhymeGroupData[rhymeGroupIdx];
+          if (groupData && groupData.baseChar === ComposeData.userChars[globalIdx]) {
+            // baseChar被清空，切换到组内第一个剩余字
+            const firstRemaining = remainingInGroup
+              .map(pos => ({ pos, char: ComposeData.userChars[pos] }))
+              .sort((a, b) => rg.positions.indexOf(a.pos) - rg.positions.indexOf(b.pos))[0];
+            if (firstRemaining) {
+              showRhymeHint(firstRemaining.char, rhymeGroupIdx);
+            }
+          }
+        }
+      }
+      // 检查是否所有韵组都清空了
+      const anyGroupActive = ComposeData.rhymeGroups.some(g => {
+        const remaining = g.positions.filter(pos => ComposeData.userChars[pos]);
+        return remaining.length > 0;
+      });
+      if (!anyGroupActive) {
+        document.getElementById('rhymeHint').style.display = 'none';
+      }
+    }
+    
+    updateFeedback();
+    return;
+  }
+  
+  // 检查是否为汉字
+  if (!/^[\u4e00-\u9fff]$/.test(char)) {
+    input.value = '';
+    toast('请输入汉字', 'error');
+    return;
+  }
+  
+  // 韵脚替换检测：如果该位置之前已有字且是韵脚，先清除旧字对韵组的影响
+  const oldChar = ComposeData.userChars[globalIdx];
+  if (isRhyme && rhymeGroupIdx !== null && oldChar && oldChar !== char) {
+    // 该韵脚位置有旧字被新字替换，先移除旧字的影响
+    const rg = ComposeData.rhymeGroups.find(g => g.index === rhymeGroupIdx);
+    const groupData = ComposeData.rhymeGroupData[rhymeGroupIdx];
+    if (rg && groupData) {
+      // 检查替换后该韵组是否还有其他字（不含当前位置）
+      const otherPositionsInGroup = rg.positions.filter(pos => pos !== globalIdx && ComposeData.userChars[pos]);
+      if (otherPositionsInGroup.length === 0) {
+        // 替换后该韵组没有其他字了，清除韵组数据，让新字重新建立
+        delete ComposeData.rhymeGroupData[rhymeGroupIdx];
+      } else if (groupData.baseChar === oldChar) {
+        // 旧字是baseChar，需要切换baseChar到组内其他字
+        const newBasePos = otherPositionsInGroup
+          .sort((a, b) => rg.positions.indexOf(a) - rg.positions.indexOf(b))[0];
+        const newBaseChar = ComposeData.userChars[newBasePos];
+        // 重新建立韵组提示（以新baseChar为准）
+        await showRhymeHint(newBaseChar, rhymeGroupIdx);
+      }
+      // 如果旧字不是baseChar，无需额外处理，直接让新字参与冲突检测即可
+    }
+  }
+  
+  // 保存用户输入
+  ComposeData.userChars[globalIdx] = char;
+  
+  // 检查平仄
+  try {
+    // 获取该韵组的baseChar（如果有），注意：如果是替换且baseChar被清除，此时baseChar应为null
+    let rhymeBaseChar = null;
+    if (isRhyme && rhymeGroupIdx !== null) {
+      rhymeBaseChar = ComposeData.rhymeGroupData[rhymeGroupIdx]?.baseChar || null;
+    }
+    
+    const checkRes = await api('/api/check/char', 'POST', {
+      char,
+      expected_tone: expectedTone,
+      rhyme_base_char: rhymeBaseChar
+    });
+    
+    if (checkRes.success) {
+      const data = checkRes.data;
+      
+      // 显示拼音
+      document.getElementById(`pinyin-${globalIdx}`).textContent = data.pinyin;
+      
+      // 平仄检查
+      let pingzeMatch = data.pingze_match;
+      
+      // 韵格增强验证：检查韵脚字的声调是否与韵格要求一致
+      if (isRhyme && pingzeMatch) {
+        const rs = ComposeData.rhymeScheme;
+        if (rs) {
+          const actualTone = data.actual_tone; // '平' 或 '仄'
+          const schemeType = rs.type;
+          
+          // 平韵格：韵脚必须是平声
+          if (schemeType === 'ping_yun_ge' && actualTone !== '平') {
+            pingzeMatch = false;
+            toast(`平韵格韵脚应为平声字，"${char}"为仄声`, 'warning');
+          }
+          // 仄韵格：韵脚必须是仄声（排除叶韵的情况）
+          else if (schemeType === 'ze_yun_ge' && actualTone !== '仄' && !rs.is_ye_rhyme) {
+            pingzeMatch = false;
+            toast(`仄韵格韵脚应为仄声字，"${char}"为平声`, 'warning');
+          }
+        }
+      }
+      
+      if (!pingzeMatch) {
+        input.classList.add('error');
+      } else {
+        input.classList.remove('error');
+      }
+      
+      // 韵脚处理
+      if (isRhyme && rhymeGroupIdx !== null) {
+        const groupData = ComposeData.rhymeGroupData[rhymeGroupIdx];
+        if (!groupData || !groupData.baseChar) {
+          // 这是该韵组的第一个韵脚字（或替换后韵组被重置）
+          showRhymeHint(char, rhymeGroupIdx);
+        } else {
+          // 检查该韵组内的韵脚冲突
+          checkRhymeConflict(char, input, rhymeGroupIdx);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('检查字符失败:', e);
+  }
+  
+  // 更新反馈
+  updateFeedback();
+  
+  // 自动跳到下一个格子
+  moveToNextInput(input);
+}
+
+// 键盘事件
+function onCharKeydown(event, input) {
+  if (event.key === 'Backspace' && !input.value) {
+    // 退格键且当前为空，跳到前一个格子
+    moveToPrevInput(input);
+  } else if (event.key === 'ArrowLeft') {
+    moveToPrevInput(input);
+  } else if (event.key === 'ArrowRight') {
+    moveToNextInput(input);
+  }
+}
+
+// 移动到下一个输入框
+function moveToNextInput(currentInput) {
+  const inputs = Array.from(document.querySelectorAll('.char-input'));
+  const currentIdx = inputs.indexOf(currentInput);
+  if (currentIdx < inputs.length - 1) {
+    inputs[currentIdx + 1].focus();
+  }
+}
+
+// 移动到上一个输入框
+function moveToPrevInput(currentInput) {
+  const inputs = Array.from(document.querySelectorAll('.char-input'));
+  const currentIdx = inputs.indexOf(currentInput);
+  if (currentIdx > 0) {
+    inputs[currentIdx - 1].focus();
+  }
+}
+
+// 显示韵脚提示（按韵组独立）
+async function showRhymeHint(char, groupIndex) {
+  const hintDiv = document.getElementById('rhymeHint');
+  hintDiv.style.display = 'block';
+  
+  // 获取该韵组信息
+  const rg = ComposeData.rhymeGroups.find(g => g.index === groupIndex);
+  const typeLabel = rg ? (rg.type + '韵') : '韵';
+  
+  // 显示加载中
+  renderRhymeHintGroupLoading(groupIndex, typeLabel);
+  
+  // 获取平水韵信息
+  const res = await api(`/api/rhyme/yunbu?char=${char}`);
+  if (res.success) {
+    const data = res.data;
+    
+    if (data.yunbus && data.yunbus.length > 0) {
+      // 构建韵组显示名
+      let yunbuDisplay;
+      const compatYunbus = data.compat_yunbus || [];
+      if (compatYunbus.length > 1) {
+        yunbuDisplay = compatYunbus.join('') + '通用';
+      } else if (data.yunbus.length === 1) {
+        yunbuDisplay = data.yunbus[0];
+      } else {
+        yunbuDisplay = `${data.yunbus[0]}【${data.yunbus.slice(1).join('、')}】`;
+      }
+      
+      // 保存该韵组数据
+      ComposeData.rhymeGroupData[groupIndex] = {
+        baseChar: char,
+        yunbuDisplay: yunbuDisplay,
+        compatYunbus: compatYunbus,
+        yunbuChars: data.yunbu_chars || [],
+        fallback: false
+      };
+      
+    } else if (data.fallback && data.yunbu_chars && data.yunbu_chars.length > 0) {
+      // 降级显示
+      ComposeData.rhymeGroupData[groupIndex] = {
+        baseChar: char,
+        yunbuDisplay: data.rhyme_group_label || '简化韵组',
+        compatYunbus: [],
+        yunbuChars: data.yunbu_chars || [],
+        fallback: true
+      };
+      
+    } else {
+      ComposeData.rhymeGroupData[groupIndex] = {
+        baseChar: char,
+        yunbuDisplay: '未收录',
+        compatYunbus: [],
+        yunbuChars: [],
+        fallback: false,
+        message: data.message || '该字不在平水韵数据库中'
+      };
+    }
+  } else {
+    ComposeData.rhymeGroupData[groupIndex] = {
+      baseChar: char,
+      yunbuDisplay: '查询失败',
+      compatYunbus: [],
+      yunbuChars: [],
+      fallback: false,
+      message: '请稍后重试'
+    };
+  }
+  
+  // 渲染所有韵组提示
+  renderRhymeHintContent();
+}
+
+// 渲染韵组加载中状态
+function renderRhymeHintGroupLoading(groupIndex, typeLabel) {
+  renderRhymeHintContent();
+}
+
+// 渲染所有韵组提示内容
+function renderRhymeHintContent() {
+  const container = document.getElementById('rhymeHintContent');
+  if (!container) return;
+  
+  // 检查是否有任何活跃韵组
+  const activeGroups = ComposeData.rhymeGroups.filter(g => {
+    return g.positions.some(pos => ComposeData.userChars[pos]);
+  });
+  
+  if (activeGroups.length === 0) {
+    document.getElementById('rhymeHint').style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  
+  let html = '';
+  
+  const multiGroup = ComposeData.rhymeGroups && ComposeData.rhymeGroups.length > 1;
+  
+  activeGroups.forEach((rg, idx) => {
+    const groupData = ComposeData.rhymeGroupData[rg.index];
+    const rs = ComposeData.rhymeScheme;
+    
+    // 根据韵格类型构建标签
+    let typeLabel = '韵组';
+    if (rs) {
+      const schemeType = rs.type;
+      if (schemeType === 'que_jian') {
+        // 阕间换韵：标记上阕/下阕
+        const stanzaInfo = rg.type === '平' ? '平韵' : '仄韵';
+        // 用positions判断上下阕
+        const stanzaSplit = ComposeData.stanzaSplit;
+        const firstPos = rg.positions[0];
+        const stanzaLabel = stanzaSplit && firstPos < stanzaSplit ? '上阕' : '下阕';
+        typeLabel = `${stanzaLabel}${stanzaInfo}`;
+      } else if (schemeType === 'que_nei' || schemeType === 'que_nei_jian') {
+        typeLabel = `${rg.type}韵组${idx + 1}`;
+      } else {
+        typeLabel = rg.type + '韵';
+      }
+    } else if (multiGroup) {
+      typeLabel = rg.type + '韵组';
+    }
+    
+    const colorClass = multiGroup ? getRhymeGroupLabelClass(rg.index) : '';
+    const separator = idx > 0 ? '<div class="rhyme-group-separator"></div>' : '';
+    
+    html += separator;
+    html += `<div class="rhyme-group-block" data-rhyme-group="${rg.index}">`;
+    html += `<div class="rhyme-group-header">`;
+    html += `<span class="rhyme-group-type ${colorClass}">${typeLabel}</span>`;
+    
+    if (groupData) {
+      html += `<span class="rhyme-group-name ${colorClass}">${groupData.yunbuDisplay || '识别中...'}</span>`;
+    } else {
+      html += `<span class="rhyme-group-name">等待输入...</span>`;
+    }
+    html += `</div>`;
+    
+    // 可用韵脚字
+    html += `<div class="rhyme-group-chars">`;
+    if (groupData && groupData.yunbuChars && groupData.yunbuChars.length > 0) {
+      // 收集该韵组内已使用的字
+      const usedChars = new Set();
+      rg.positions.forEach(pos => {
+        if (ComposeData.userChars[pos]) {
+          usedChars.add(ComposeData.userChars[pos]);
+        }
+      });
+      
+      groupData.yunbuChars.forEach(c => {
+        const usedClass = usedChars.has(c) ? ' used' : '';
+        const title = usedChars.has(c) ? ' title="已使用"' : '';
+        html += `<span class="rhyme-char${usedClass}"${title}>${c}</span>`;
+      });
+    } else if (groupData && groupData.message) {
+      html += `<span class="rhyme-char-message">${groupData.message}</span>`;
+    } else if (groupData) {
+      html += `<span class="rhyme-char-message">加载中...</span>`;
+    } else {
+      html += `<span class="rhyme-char-message">等待输入第一个韵脚字</span>`;
+    }
+    html += `</div>`;
+    html += `</div>`;
+  });
+  
+  container.innerHTML = html;
+}
+
+// 检查韵脚冲突（按韵组独立）
+async function checkRhymeConflict(newChar, input, groupIndex) {
+  const rg = ComposeData.rhymeGroups.find(g => g.index === groupIndex);
+  if (!rg) return;
+  
+  // 仅收集该韵组内已填的韵脚字
+  const groupData = ComposeData.rhymeGroupData[groupIndex];
+  const rhymeChars = [];
+  if (groupData && groupData.baseChar) {
+    rhymeChars.push(groupData.baseChar);
+  }
+  rg.positions.forEach(pos => {
+    const ch = ComposeData.userChars[pos];
+    if (ch && (!groupData || ch !== groupData.baseChar)) {
+      rhymeChars.push(ch);
+    }
+  });
+  rhymeChars.push(newChar);
+  
+  // 调用冲突检测API
+  const res = await api('/api/rhyme/check-conflict', 'POST', { chars: rhymeChars });
+  
+  if (res.success && res.data.has_conflict) {
+    input.classList.add('error');
+    toast(`韵脚矛盾："${newChar}"与同组已填韵脚字不在同一韵部（含通用韵组）`, 'error');
+  } else if (res.success && res.data.compat_yunbus && res.data.compat_yunbus.length > 0) {
+    // 更新该韵组的韵部显示
+    const compatYunbus = res.data.compat_yunbus;
+    const display = compatYunbus.length > 1 
+      ? compatYunbus.join('') + '通用'
+      : compatYunbus[0];
+    
+    if (ComposeData.rhymeGroupData[groupIndex]) {
+      ComposeData.rhymeGroupData[groupIndex].yunbuDisplay = display;
+      ComposeData.rhymeGroupData[groupIndex].compatYunbus = compatYunbus;
+    }
+  }
+  
+  // 更新韵脚字显示（标记已使用的字）
+  renderRhymeHintContent();
+}
+
+// 更新韵脚字显示（由renderRhymeHintContent统一处理，保留兼容）
+function updateRhymeCharsDisplay() {
+  renderRhymeHintContent();
+}
+
+// 更新实时反馈
+function updateFeedback() {
+  const totalChars = ComposeData.grid.reduce((sum, s) => sum + s.char_count, 0);
+  const filledCount = Object.keys(ComposeData.userChars).length;
+  
+  // 统计平仄错误
+  const errorCount = document.querySelectorAll('.char-input.error').length;
+  
+  // 统计韵脚
+  const rhymeCount = ComposeData.rhymePositions.filter(pos => ComposeData.userChars[pos]).length;
+  const totalRhyme = ComposeData.rhymePositions.length;
+  
+  // 平仄反馈
+  const pingzeStatus = document.getElementById('pingzeStatus');
+  if (filledCount === 0) {
+    pingzeStatus.textContent = '等待输入...';
+    pingzeStatus.className = '';
+  } else if (errorCount === 0) {
+    pingzeStatus.textContent = `已填${filledCount}/${totalChars}字，平仄全部正确 ✓`;
+    pingzeStatus.className = 'success';
+  } else {
+    pingzeStatus.textContent = `已填${filledCount}/${totalChars}字，${errorCount}处平仄不符（已标红）`;
+    pingzeStatus.className = 'warning';
+  }
+  
+  // 韵脚反馈
+  const rhymeStatus = document.getElementById('rhymeStatus');
+  const activeGroupData = Object.values(ComposeData.rhymeGroupData).filter(g => g.baseChar);
+  const rs = ComposeData.rhymeScheme;
+  const schemeLabel = rs ? `【${rs.name}】` : '';
+  if (activeGroupData.length === 0) {
+    rhymeStatus.textContent = `${schemeLabel}已填${rhymeCount}/${totalRhyme}个韵脚，等待确定韵组...`;
+    rhymeStatus.className = '';
+  } else {
+    const groupTexts = activeGroupData.map(g => g.yunbuDisplay || '识别中').join('、');
+    rhymeStatus.textContent = `${schemeLabel}韵组：${groupTexts}，已填${rhymeCount}/${totalRhyme}个韵脚`;
+    rhymeStatus.className = 'success';
+  }
+}
+
+// 清空重填
+function clearCompose() {
+  if (!confirm('确定要清空所有填写的内容吗？')) return;
+  
+  ComposeData.userChars = {};
+  ComposeData.rhymeGroupData = {};
+  
+  document.querySelectorAll('.char-input').forEach(input => {
+    input.value = '';
+    input.classList.remove('error');
+  });
+  
+  document.querySelectorAll('.char-pinyin').forEach(el => {
+    el.textContent = '';
+  });
+  
+  document.getElementById('rhymeHint').style.display = 'none';
+  const rhymeContent = document.getElementById('rhymeHintContent');
+  if (rhymeContent) rhymeContent.innerHTML = '';
+  updateFeedback();
+}
+
+// 重置填词（重新选择词牌）
+function resetCompose() {
+  ComposeData = {
+    selectedCipaiId: null,
+    selectedCipai: null,
+    selectedPatternIndex: 0,
+    grid: null,
+    rhymePositions: [],
+    rhymeGroups: [],
+    rhymeGroupData: {},
+    lineGroups: [],
+    stanzaSplit: null,
+    userChars: {},
+    patternWorks: {}  // 缓存格律代表作
+  };
+  
+  document.getElementById('composeStep1').style.display = 'block';
+  document.getElementById('composeStep1_5').style.display = 'none';
+  document.getElementById('composeStep2').style.display = 'none';
+  document.getElementById('composeRepWork').style.display = 'none';
+  
+  // 清空搜索框
+  document.getElementById('composeCipaiSearch').value = '';
+  loadComposeCipaiList();
+}
+
+// 完成填词，跳转到评分
+function submitCompose() {
+  const totalChars = ComposeData.grid.reduce((sum, s) => sum + s.char_count, 0);
+  const filledCount = Object.keys(ComposeData.userChars).length;
+  
+  if (filledCount < totalChars) {
+    toast(`还有${totalChars - filledCount}个字未填写`, 'error');
+    return;
+  }
+  
+  // 构建词作文本（按韵脚分行，上下阕间空行）
+  let content = '';
+  const lineGroups = ComposeData.lineGroups || [];
+  const stanzaSplit = ComposeData.stanzaSplit;
+  
+  if (lineGroups.length > 0) {
+    // 按韵脚分行构建
+    let lastUpperLineIdx = -1;
+    if (stanzaSplit) {
+      let sentCount = 0;
+      for (let li = 0; li < lineGroups.length; li++) {
+        sentCount += lineGroups[li].length;
+        if (sentCount >= stanzaSplit) {
+          lastUpperLineIdx = li;
+          break;
+        }
+      }
+    }
+    
+    lineGroups.forEach((group, lineIdx) => {
+      const lineText = group.map(sIdx => {
+        const sentence = ComposeData.grid[sIdx];
+        return sentence.chars.map(char => ComposeData.userChars[char.global_index] || '').join('');
+      }).join('');
+      const punct = ComposeData.grid[group[group.length - 1]].punctuation || '。';
+      content += lineText + punct;
+      
+      // 上下阕之间空行
+      if (stanzaSplit && lineIdx === lastUpperLineIdx) {
+        content += '\n\n';
+      } else if (lineIdx < lineGroups.length - 1) {
+        content += '\n';
+      }
+    });
+  } else {
+    // 回退到旧方式
+    ComposeData.grid.forEach((sentence, sIdx) => {
+      const line = sentence.chars.map(char => ComposeData.userChars[char.global_index] || '').join('');
+      content += line;
+      if (sIdx === Math.floor(ComposeData.grid.length / 2) - 1) {
+        content += '\n\n';
+      } else {
+        content += '\n';
+      }
+    });
+  }
+  
+  // 跳转到评分页面并填入内容
+  showPage('score');
+  
+  // 选择词牌
+  const cipai = App.cipaiList.find(c => c.id === ComposeData.selectedCipaiId);
+  if (cipai) selectCipai(cipai);
+  
+  // 填入内容
+  document.getElementById('poemContent').value = content.trim();
+  document.getElementById('charCount').textContent = filledCount;
+  document.getElementById('editWorkId').value = '';
+  
+  toast('已填入词作，可以开始评分了', 'success');
+}
+

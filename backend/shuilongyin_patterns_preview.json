@@ -1,0 +1,177 @@
+[
+  {
+    "name": "正体",
+    "description": "双调102字，前段12句4仄韵，后段12句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体一",
+    "description": "双调102字，前段12句5仄韵，后段12句4仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体二",
+    "description": "双调102字，前段13句5仄韵，后段12句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 13,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体三",
+    "description": "双调101字，前段13句4仄韵，后段11句5仄韵",
+    "total_chars": 101,
+    "stanza_split": 13,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体四",
+    "description": "双调102字，前段12句4仄韵，后段13句6仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体五",
+    "description": "双调102字，前段12句4仄韵，后段12句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体六",
+    "description": "双调102字，前段12句5仄韵，后段12句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体七",
+    "description": "双调104字，前段11句5仄韵，后段11句4仄韵",
+    "total_chars": 104,
+    "stanza_split": 11,
+    "sentences_count": 22
+  },
+  {
+    "name": "变体八",
+    "description": "双调106字，前段13句4仄韵，后段12句4仄韵",
+    "total_chars": 106,
+    "stanza_split": 13,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体九",
+    "description": "双调102字，前段12句4仄韵，后段12句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体十",
+    "description": "双调102字，前段12句4仄韵，后段12句4仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体十一",
+    "description": "双调102字，前段12句4仄韵，后段13句6仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体十二",
+    "description": "双调102字，前段12句4仄韵，后段12句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体十三",
+    "description": "双调102字，前段12句4仄韵，后段13句6仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体十四",
+    "description": "双调102字，前段12句4仄韵，后段13句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体十五",
+    "description": "双调102字，前段12句4仄韵，后段12句5仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 24
+  },
+  {
+    "name": "变体十六",
+    "description": "双调104字，前段12句4仄韵，后段13句5仄韵",
+    "total_chars": 104,
+    "stanza_split": 12,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体十七",
+    "description": "双调106字，前段12句4仄韵，后段11句4仄韵",
+    "total_chars": 106,
+    "stanza_split": 12,
+    "sentences_count": 23
+  },
+  {
+    "name": "变体十八",
+    "description": "双调102字，前段12句4仄韵，后段11句4仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 23
+  },
+  {
+    "name": "变体十九",
+    "description": "双调102字，前段12句4仄韵，后段11句4仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 23
+  },
+  {
+    "name": "变体二十",
+    "description": "双调101字，前段11句4仄韵，后段11句4仄韵",
+    "total_chars": 101,
+    "stanza_split": 11,
+    "sentences_count": 22
+  },
+  {
+    "name": "变体二十一",
+    "description": "双调102字，前段12句4仄韵，后段13句4仄韵",
+    "total_chars": 102,
+    "stanza_split": 12,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体二十二",
+    "description": "双调102字，前段13句4仄韵，后段12句4仄韵",
+    "total_chars": 102,
+    "stanza_split": 13,
+    "sentences_count": 25
+  },
+  {
+    "name": "变体二十三",
+    "description": "双调102字，前段17句5平韵，后段16句5平韵",
+    "total_chars": 102,
+    "stanza_split": 17,
+    "sentences_count": 33
+  },
+  {
+    "name": "变体二十四",
+    "description": "双调102字，前段9句5仄韵，后段11句4仄韵",
+    "total_chars": 102,
+    "stanza_split": 9,
+    "sentences_count": 20
+  }
+]
