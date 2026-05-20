@@ -79,8 +79,14 @@ _backup_before_cleanup/
 .DS_Store
 Thumbs.db
 
+# Node
+node_modules/
+package*.json
+dist/
+
 # WorkBuddy
 .workbuddy/
 
 # Vercel
 .vercel/
+.vercel
