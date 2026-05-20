@@ -1,13 +1,5 @@
 {
   "version": 2,
   "buildCommand": "python build.py",
-  "outputDirectory": "dist",
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python@3.12"
-    }
-  },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" }
-  ]
+  "outputDirectory": "dist"
 }
