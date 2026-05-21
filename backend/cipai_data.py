@@ -7263,3 +7263,21 @@ CIPAI_DATABASE = [{'alias': ['元会曲', '凯歌', '台城游'],
                               {'chars': 4, 'rhyme': False, 'tone': '仄仄平平'},
                               {'chars': 5, 'rhyme': True, 'rhyme_type': '仄', 'tone': '平平平仄仄'}],
                 'total_chars': 102}]}]
+
+def get_cipai_by_id(cipai_id):
+    for c in CIPAI_DATABASE:
+        if c['id'] == cipai_id:
+            return c
+    return None
+
+def search_cipai(keyword):
+    keyword = keyword.lower()
+    results = []
+    for c in CIPAI_DATABASE:
+        if keyword in c['name'].lower():
+            results.append(c)
+    return results
+
+def get_all_cipai():
+    """获取所有词牌名称列表"""
+    return [{"id": c["id"], "name": c["name"], "alias": c["alias"], "dynasty": c.get("dynasty",""), "description": c.get("description","")} for c in CIPAI_DATABASE]
